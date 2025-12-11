@@ -1,12 +1,12 @@
 use gpui::*;
-// use std::io;
 mod button;
+mod calculator;
 mod logic;
 mod show;
 mod style;
 mod toucharea;
 
-//use button::Button;
+use calculator::Calculator;
 use show::Show;
 use toucharea::TouchArea;
 
@@ -17,24 +17,32 @@ struct Root {
 
 impl Root {
     fn new(cx: &mut App) -> Self {
-        let show = cx.new(|_| Show::new());
-        let toucharea = cx.new(|_| TouchArea::new(&show));
+        let calculator = cx.new(|_| Calculator::new());
+        let show = cx.new(|cx| Show::new(calculator.clone(), cx));
+        let toucharea = cx.new(|_| TouchArea::new(calculator.clone()));
         Self { show, toucharea }
     }
 }
+
 impl Render for Root {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
             .font_family(SharedString::from("JetBrainsMono Nerd Font"))
-            .child(div().child(self.show.read(cx).clone()))
-            .child(div().child(self.toucharea.read(cx).clone()))
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .h(DefiniteLength::Fraction(0.2))
+                    .child(self.show.clone()),
+            )
+            .child(div().flex_1().child(self.toucharea.clone()))
     }
 }
 
 fn main() {
     Application::new().run(|cx| {
-        let bounds = Bounds::centered(None, size(px(300.0), px(180.0)), cx);
+        let bounds = Bounds::centered(None, size(px(400.0), px(500.0)), cx);
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -44,5 +52,4 @@ fn main() {
         )
         .unwrap();
     });
-    todo!("重构代码,完成剩余的功能");
 }

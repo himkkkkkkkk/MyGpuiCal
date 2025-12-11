@@ -1,84 +1,151 @@
-use crate::button;
-use crate::show::Show;
+use crate::calculator::Calculator;
 use crate::style;
-use gpui::prelude::FluentBuilder;
 use gpui::*;
 
-#[derive(IntoElement, Clone)]
+/// 按钮类型枚举
+enum ButtonType {
+    Number(char),
+    Operator(char),
+    Decimal,
+    Clear,
+    Delete,
+    Equals,
+}
+
+/// 触摸区域组件 - 包含计算器按钮网格
 pub struct TouchArea {
-    children: Vec<Vec<button::Button>>,
-    show_state: Entity<Show>,
+    /// 计算器实体的引用
+    calculator: Entity<Calculator>,
 }
 
 impl TouchArea {
-    pub fn new(show_state: &Entity<Show>) -> Self {
-        let mut children = vec![];
-        let mut temp = vec![];
-        let icon = vec![
-            "←", "AC", "%", "÷", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ",",
-            "0", ".", "=",
-        ];
-        for i in icon {
-            temp.push(button::Button::new(SharedString::from(format!("{}", i))));
+    /// 创建新的触摸区域组件
+    pub fn new(calculator: Entity<Calculator>) -> Self {
+        Self { calculator }
+    }
 
-            if temp.len() == 4 {
-                children.push(temp.clone());
-                temp.clear();
-            }
-        }
-        Self {
-            children,
-            show_state: show_state.clone(),
-        }
+    /// 获取按钮网格配置
+    fn button_grid() -> Vec<Vec<(SharedString, ButtonType)>> {
+        vec![
+            vec![
+                ("←".into(), ButtonType::Delete),
+                ("AC".into(), ButtonType::Clear),
+                ("%".into(), ButtonType::Operator('%')),
+                ("÷".into(), ButtonType::Operator('÷')),
+            ],
+            vec![
+                ("7".into(), ButtonType::Number('7')),
+                ("8".into(), ButtonType::Number('8')),
+                ("9".into(), ButtonType::Number('9')),
+                ("×".into(), ButtonType::Operator('×')),
+            ],
+            vec![
+                ("4".into(), ButtonType::Number('4')),
+                ("5".into(), ButtonType::Number('5')),
+                ("6".into(), ButtonType::Number('6')),
+                ("-".into(), ButtonType::Operator('-')),
+            ],
+            vec![
+                ("1".into(), ButtonType::Number('1')),
+                ("2".into(), ButtonType::Number('2')),
+                ("3".into(), ButtonType::Number('3')),
+                ("+".into(), ButtonType::Operator('+')),
+            ],
+            vec![
+                ("，".into(), ButtonType::Operator('，')),
+                ("0".into(), ButtonType::Number('0')),
+                (".".into(), ButtonType::Decimal),
+                ("=".into(), ButtonType::Equals),
+            ],
+        ]
     }
 }
 
-impl RenderOnce for TouchArea {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+impl Render for TouchArea {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let calculator = self.calculator.clone();
+        let button_grid = Self::button_grid();
+
         div()
+            .id("calculator-keypad")
             .flex()
             .flex_col()
             .bg(rgb(style::PAD_COLOR))
-            .h_full()
-            .py(DefiniteLength::Fraction(0.02))
-            .gap(DefiniteLength::Fraction(0.02))
-            .justify_around()
-            .children(self.children.into_iter().map(|child| {
-                div()
-                    .id("act")
-                    .flex()
-                    .gap_1()
-                    .m_neg_0p5()
-                    .children(child.into_iter().map(|child| {
-                        let show_state = self.show_state.clone();
-                        let l = child.get_label();
-                        let lc = l.to_string().clone();
-                        div()
-                            .id(l)
+            .size_full()
+            .p_1()
+            .gap_1()
+            .children(button_grid.into_iter().map(|row| {
+                div().flex().flex_1().gap_1().children(row.into_iter().map(
+                    |(label, button_type)| {
+                        let calculator = calculator.clone();
+
+                        // 确定按钮的样式类
+                        let is_number = matches!(button_type, ButtonType::Number(_));
+                        let is_operator = matches!(button_type, ButtonType::Operator(_));
+                        let is_special = matches!(
+                            button_type,
+                            ButtonType::Clear | ButtonType::Delete | ButtonType::Equals
+                        );
+
+                        let base_style = div()
+                            .id(label.clone())
                             .flex()
-                            .text_color(rgb(style::WHITE_COLOR))
-                            .hover(|this| this.bg(rgb(style::BUTTON_COLOR_HOVER)))
-                            .when(!"1234567890".contains(&lc), |this| {
-                                this.bg(rgb(style::BUTTON_COLOR))
-                                    .text_color(rgb(style::PRIMARY_COLOR))
-                            })
-                            .h(DefiniteLength::Fraction(0.8))
-                            .w_full()
-                            .on_click(move |_, window, cx| {
-                                show_state.update(cx, |show, cx| match lc.as_str() {
-                                    "←" => show.delete_char(window, cx),
-                                    "AC" => show.reset(window, cx),
-                                    "=" => show.cal(),
-                                    _ => show.add_str(window, cx, &lc),
-                                })
-                            })
-                            .rounded_lg()
+                            .flex_1()
+                            .rounded_md()
                             .text_lg()
                             .text_center()
                             .justify_center()
                             .items_center()
-                            .child(child.get_label())
-                    }))
+                            .child(label.clone());
+
+                        // 应用样式
+                        let styled_button = if is_number {
+                            base_style
+                                .bg(rgb(style::BUTTON_COLOR))
+                                .text_color(rgb(style::WHITE_COLOR))
+                                .hover(|this| this.bg(rgb(style::BUTTON_COLOR_HOVER)))
+                        } else if is_operator || is_special {
+                            base_style
+                                .bg(rgb(style::BUTTON_COLOR))
+                                .text_color(rgb(style::PRIMARY_COLOR))
+                                .hover(|this| this.bg(rgb(0x707070))) // 操作符悬停色
+                        } else {
+                            // 小数点按钮
+                            base_style
+                                .bg(rgb(style::BUTTON_COLOR))
+                                .text_color(rgb(style::WHITE_COLOR))
+                                .hover(|this| this.bg(rgb(style::BUTTON_COLOR_HOVER)))
+                        };
+
+                        // 添加点击事件处理
+                        styled_button.on_click(move |_event, _window, cx| {
+                            calculator.update(cx, |calculator, cx| match button_type {
+                                ButtonType::Number(num) => {
+                                    calculator.input_number(num, cx);
+                                }
+                                ButtonType::Operator(op) => {
+                                    if op == '(' || op == ')' {
+                                        calculator.input_parenthesis(op, cx);
+                                    } else {
+                                        calculator.input_operator(op, cx);
+                                    }
+                                }
+                                ButtonType::Decimal => {
+                                    calculator.input_decimal(cx);
+                                }
+                                ButtonType::Clear => {
+                                    calculator.clear(cx);
+                                }
+                                ButtonType::Delete => {
+                                    calculator.delete(cx);
+                                }
+                                ButtonType::Equals => {
+                                    calculator.calculate(cx);
+                                }
+                            });
+                        })
+                    },
+                ))
             }))
     }
 }
