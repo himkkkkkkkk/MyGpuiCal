@@ -9,7 +9,7 @@ MyCal is a calculator application built with Rust and gpui framework.
 1. Clone the repository to your local machine:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/himkkkkkkkk/MyGpuiCal.git
 ```
 
 2. Navigate to the project directory:
