@@ -39,6 +39,8 @@ If you find any issues or have suggestions for improvements:
 
 ---
 
+## Credits
+
 - **Logic & Data Flow**: Original implementation by myself
 
 - **UI Design**: Inspired by [gpui-calculator](https://github.com/kriskw1999/gpui-calculator)
