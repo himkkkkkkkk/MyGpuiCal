@@ -24,10 +24,10 @@ impl Show {
         Self { calculator }
     }
 
-    /// 获取当前显示文本
-    pub fn display_text(&self, cx: &App) -> String {
-        self.calculator.read(cx).display_text()
-    }
+    // 获取当前显示文本
+    // pub fn display_text(&self, cx: &App) -> String {
+    //     self.calculator.read(cx).display_text()
+    // }
 }
 
 impl Render for Show {

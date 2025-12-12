@@ -10,6 +10,7 @@ enum ButtonType {
     Clear,
     Delete,
     Equals,
+    CommaFormatting,
 }
 
 /// 触摸区域组件 - 包含计算器按钮网格
@@ -52,7 +53,7 @@ impl TouchArea {
                 ("+".into(), ButtonType::Operator('+')),
             ],
             vec![
-                ("，".into(), ButtonType::Operator('，')),
+                (",".into(), ButtonType::CommaFormatting),
                 ("0".into(), ButtonType::Number('0')),
                 (".".into(), ButtonType::Decimal),
                 ("=".into(), ButtonType::Equals),
@@ -84,7 +85,10 @@ impl Render for TouchArea {
                         let is_operator = matches!(button_type, ButtonType::Operator(_));
                         let is_special = matches!(
                             button_type,
-                            ButtonType::Clear | ButtonType::Delete | ButtonType::Equals
+                            ButtonType::Clear
+                                | ButtonType::Delete
+                                | ButtonType::Equals
+                                | ButtonType::CommaFormatting
                         );
 
                         let base_style = div()
@@ -138,6 +142,9 @@ impl Render for TouchArea {
                                 }
                                 ButtonType::Delete => {
                                     calculator.delete(cx);
+                                }
+                                ButtonType::CommaFormatting => {
+                                    calculator.toggle_comma_formatting(cx);
                                 }
                                 ButtonType::Equals => {
                                     calculator.calculate(cx);

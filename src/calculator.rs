@@ -5,15 +5,17 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum CalculatorEvent {
     /// 数字按键事件，包含数字字符
-    NumberPressed(char),
+    NumberPressed,
     /// 操作符按键事件，包含操作符字符
-    OperatorPressed(char),
+    OperatorPressed,
     /// 小数点按键事件
     DecimalPressed,
     /// 括号按键事件，包含括号字符
-    ParenthesisPressed(char),
+    ParenthesisPressed,
     /// 百分比按键事件
     PercentagePressed,
+    /// 逗号格式化切换事件
+    CommaFormattingToggled,
     /// 清除按键事件
     ClearPressed,
     /// 删除按键事件
@@ -21,9 +23,9 @@ pub enum CalculatorEvent {
     /// 等于按键事件，触发计算
     EqualsPressed,
     /// 表达式发生变化，包含新的表达式字符串
-    ExpressionChanged(String),
+    ExpressionChanged,
     /// 计算结果，包含计算结果值
-    ResultCalculated(f64),
+    ResultCalculated,
     /// 计算器状态重置
     StateReset,
 }
@@ -39,6 +41,8 @@ pub struct CalculatorState {
     pub just_calculated: bool,
     /// 是否表达式为空
     pub is_empty: bool,
+    /// 是否启用逗号格式化显示（每三位加逗号）
+    pub comma_formatting: bool,
 }
 
 impl Default for CalculatorState {
@@ -48,6 +52,7 @@ impl Default for CalculatorState {
             last_result: None,
             just_calculated: false,
             is_empty: false,
+            comma_formatting: false,
         }
     }
 }
@@ -94,10 +99,8 @@ impl Calculator {
 
         self.state.is_empty = self.state.expression.is_empty();
 
-        cx.emit(CalculatorEvent::NumberPressed(number));
-        cx.emit(CalculatorEvent::ExpressionChanged(
-            self.state.expression.clone(),
-        ));
+        cx.emit(CalculatorEvent::NumberPressed);
+        cx.emit(CalculatorEvent::ExpressionChanged);
         cx.notify();
     }
 
@@ -140,10 +143,8 @@ impl Calculator {
 
         self.state.expression.push(normalized_op);
 
-        cx.emit(CalculatorEvent::OperatorPressed(operator));
-        cx.emit(CalculatorEvent::ExpressionChanged(
-            self.state.expression.clone(),
-        ));
+        cx.emit(CalculatorEvent::OperatorPressed);
+        cx.emit(CalculatorEvent::ExpressionChanged);
         cx.notify();
     }
 
@@ -160,9 +161,7 @@ impl Calculator {
         self.state.expression.push('%');
 
         cx.emit(CalculatorEvent::PercentagePressed);
-        cx.emit(CalculatorEvent::ExpressionChanged(
-            self.state.expression.clone(),
-        ));
+        cx.emit(CalculatorEvent::ExpressionChanged);
         cx.notify();
     }
 
@@ -206,10 +205,8 @@ impl Calculator {
 
         self.state.expression.push(parenthesis);
 
-        cx.emit(CalculatorEvent::ParenthesisPressed(parenthesis));
-        cx.emit(CalculatorEvent::ExpressionChanged(
-            self.state.expression.clone(),
-        ));
+        cx.emit(CalculatorEvent::ParenthesisPressed);
+        cx.emit(CalculatorEvent::ExpressionChanged);
         cx.notify();
     }
 
@@ -227,18 +224,14 @@ impl Calculator {
                 self.state.expression.push('.');
 
                 cx.emit(CalculatorEvent::DecimalPressed);
-                cx.emit(CalculatorEvent::ExpressionChanged(
-                    self.state.expression.clone(),
-                ));
+                cx.emit(CalculatorEvent::ExpressionChanged);
                 cx.notify();
             }
         } else {
             self.state.expression.push('.');
 
             cx.emit(CalculatorEvent::DecimalPressed);
-            cx.emit(CalculatorEvent::ExpressionChanged(
-                self.state.expression.clone(),
-            ));
+            cx.emit(CalculatorEvent::ExpressionChanged);
             cx.notify();
         }
     }
@@ -268,9 +261,15 @@ impl Calculator {
         self.state.is_empty = self.state.expression.is_empty();
 
         cx.emit(CalculatorEvent::DeletePressed);
-        cx.emit(CalculatorEvent::ExpressionChanged(
-            self.state.expression.clone(),
-        ));
+        cx.emit(CalculatorEvent::ExpressionChanged);
+        cx.notify();
+    }
+
+    /// 切换逗号格式化显示模式
+    pub fn toggle_comma_formatting(&mut self, cx: &mut Context<Self>) {
+        self.state.comma_formatting = !self.state.comma_formatting;
+
+        cx.emit(CalculatorEvent::CommaFormattingToggled);
         cx.notify();
     }
 
@@ -294,7 +293,7 @@ impl Calculator {
                 self.state.just_calculated = true;
 
                 cx.emit(CalculatorEvent::EqualsPressed);
-                cx.emit(CalculatorEvent::ResultCalculated(result));
+                cx.emit(CalculatorEvent::ResultCalculated);
                 cx.notify();
 
                 Some(result)
@@ -321,9 +320,86 @@ impl Calculator {
         result
     }
 
-    /// 获取当前表达式
-    pub fn expression(&self) -> &str {
-        &self.state.expression
+    // 获取当前表达式
+    // pub fn expression(&self) -> &str {
+    //     &self.state.expression
+    // }
+
+    /// 格式化数字字符串，整数部分每三位添加逗号
+    fn format_with_commas(&self, number_str: &str) -> String {
+        if !self.state.comma_formatting {
+            return number_str.to_string();
+        }
+
+        // 检查是否为负数
+        let (sign, abs_number_str) = if number_str.starts_with('-') {
+            ("-", &number_str[1..])
+        } else {
+            ("", number_str)
+        };
+
+        // 分割整数部分和小数部分
+        let parts: Vec<&str> = abs_number_str.split('.').collect();
+        let integer_part = parts[0];
+        let decimal_part = if parts.len() > 1 { parts[1] } else { "" };
+
+        // 处理整数部分的逗号格式化
+        let mut formatted = String::new();
+        formatted.push_str(sign);
+
+        let chars: Vec<char> = integer_part.chars().collect();
+        let len = chars.len();
+
+        for (i, &ch) in chars.iter().enumerate() {
+            let pos_from_end = len - i;
+            formatted.push(ch);
+
+            // 每三位添加逗号，但不在开头或结尾
+            if pos_from_end > 1 && (pos_from_end - 1) % 3 == 0 && i < len - 1 {
+                formatted.push(',');
+            }
+        }
+
+        // 重新组合小数部分
+        if !decimal_part.is_empty() {
+            formatted.push('.');
+            formatted.push_str(decimal_part);
+        }
+
+        formatted
+    }
+
+    /// 格式化表达式中的数字，整数部分每三位添加逗号
+    fn format_expression_with_commas(&self, expr: &str) -> String {
+        if !self.state.comma_formatting {
+            return expr.to_string();
+        }
+
+        let mut result = String::new();
+        let mut current_number = String::new();
+        let mut chars = expr.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            if ch.is_ascii_digit() || ch == '.' {
+                // 数字或小数点，累积到当前数字
+                current_number.push(ch);
+            } else {
+                // 遇到非数字字符，先处理累积的数字
+                if !current_number.is_empty() {
+                    result.push_str(&self.format_with_commas(&current_number));
+                    current_number.clear();
+                }
+                // 添加当前字符（运算符、括号等）
+                result.push(ch);
+            }
+        }
+
+        // 处理末尾可能存在的数字
+        if !current_number.is_empty() {
+            result.push_str(&self.format_with_commas(&current_number));
+        }
+
+        result
     }
 
     /// 获取当前显示内容
@@ -332,11 +408,14 @@ impl Calculator {
             if let Some(result) = self.state.last_result {
                 // 格式化结果，移除不必要的尾随零
                 let result_str = format!("{}", result);
-                if result_str.ends_with(".0") {
+                let trimmed_result = if result_str.ends_with(".0") {
                     result_str.trim_end_matches(".0").to_string()
                 } else {
                     result_str
-                }
+                };
+
+                // 应用逗号格式化
+                self.format_with_commas(&trimmed_result)
             } else {
                 "0".to_string()
             }
@@ -344,26 +423,28 @@ impl Calculator {
             "0".to_string()
         } else {
             // 将*和/转换回×和÷以便显示
-            self.state.expression.replace('*', "×").replace('/', "÷")
+            let display_expr = self.state.expression.replace('*', "×").replace('/', "÷");
+
+            // 对表达式中的所有数字应用逗号格式化
+            self.format_expression_with_commas(&display_expr)
         }
     }
 
     /// 获取计算器状态
+    #[allow(dead_code)]
     pub fn state(&self) -> &CalculatorState {
         &self.state
     }
 
-    /// 从字符串设置表达式（用于测试或恢复状态）
-    pub fn set_expression(&mut self, expr: &str, cx: &mut Context<Self>) {
-        self.state.expression = expr.to_string();
-        self.state.just_calculated = false;
-        self.state.is_empty = expr.is_empty();
+    // 从字符串设置表达式（用于测试或恢复状态）
+    // pub fn set_expression(&mut self, expr: &str, cx: &mut Context<Self>) {
+    //     self.state.expression = expr.to_string();
+    //     self.state.just_calculated = false;
+    //     self.state.is_empty = expr.is_empty();
 
-        cx.emit(CalculatorEvent::ExpressionChanged(
-            self.state.expression.clone(),
-        ));
-        cx.notify();
-    }
+    //     cx.emit(CalculatorEvent::ExpressionChanged);
+    //     cx.notify();
+    // }
 }
 
 /// 为计算器实现事件发射器
@@ -380,5 +461,89 @@ impl Clone for Calculator {
 impl Default for Calculator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_with_commas() {
+        let mut calculator = Calculator::new();
+
+        // 测试没有逗号格式化的情况
+        assert_eq!(calculator.format_with_commas("1234567"), "1234567");
+
+        // 启用逗号格式化
+        calculator.state.comma_formatting = true;
+
+        // 测试正数
+        assert_eq!(calculator.format_with_commas("123"), "123");
+        assert_eq!(calculator.format_with_commas("1234"), "1,234");
+        assert_eq!(calculator.format_with_commas("1234567"), "1,234,567");
+        assert_eq!(calculator.format_with_commas("1234567890"), "1,234,567,890");
+
+        // 测试负数
+        assert_eq!(calculator.format_with_commas("-123"), "-123");
+        assert_eq!(calculator.format_with_commas("-1234"), "-1,234");
+        assert_eq!(calculator.format_with_commas("-1234567"), "-1,234,567");
+
+        // 测试小数
+        assert_eq!(calculator.format_with_commas("1234.56"), "1,234.56");
+        assert_eq!(calculator.format_with_commas("1234567.89"), "1,234,567.89");
+        assert_eq!(calculator.format_with_commas("-1234.56"), "-1,234.56");
+
+        // 测试边界情况
+        assert_eq!(calculator.format_with_commas("0"), "0");
+        assert_eq!(calculator.format_with_commas("0.0"), "0.0");
+        assert_eq!(calculator.format_with_commas(".5"), ".5");
+    }
+
+    #[test]
+    fn test_format_expression_with_commas() {
+        let mut calculator = Calculator::new();
+
+        // 测试没有逗号格式化的情况
+        assert_eq!(
+            calculator.format_expression_with_commas("123+456"),
+            "123+456"
+        );
+
+        // 启用逗号格式化
+        calculator.state.comma_formatting = true;
+
+        // 测试简单表达式
+        assert_eq!(
+            calculator.format_expression_with_commas("123+456"),
+            "123+456"
+        );
+        assert_eq!(
+            calculator.format_expression_with_commas("1234+5678"),
+            "1,234+5,678"
+        );
+
+        // 测试复杂表达式
+        assert_eq!(
+            calculator.format_expression_with_commas("1234.56+7890.12-3456.78"),
+            "1,234.56+7,890.12-3,456.78"
+        );
+
+        // 测试包含运算符和括号的表达式
+        assert_eq!(
+            calculator.format_expression_with_commas("(1234+5678)*9012"),
+            "(1,234+5,678)*9,012"
+        );
+
+        // 测试负数表达式
+        assert_eq!(
+            calculator.format_expression_with_commas("-1234+-5678"),
+            "-1,234+-5,678"
+        );
+
+        // 测试边界情况
+        assert_eq!(calculator.format_expression_with_commas(""), "");
+        assert_eq!(calculator.format_expression_with_commas("+"), "+");
+        assert_eq!(calculator.format_expression_with_commas("123"), "123");
     }
 }
