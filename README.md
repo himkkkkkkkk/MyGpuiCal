@@ -41,7 +41,7 @@ If you find any issues or have suggestions for improvements:
 
 - **Logic & Data Flow**: Original implementation by myself
 
-- **UI Design**: Inspired by gpui-calculator[https://github.com/kriskw1999/gpui-calculator]
+- **UI Design**: Inspired by [gpui-calculator](https://github.com/kriskw1999/gpui-calculator)
 
 - **Code Architecture & Features**: Enhanced with assistance from DeepSeek AI (added comma formatting, improved code structure, and test code)
 
